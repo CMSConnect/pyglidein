@@ -1,15 +1,23 @@
 #!/bin/sh
 
 #DOMAIN="npx.icecube.wisc.edu"
+DOMAIN="connect.uscms.org"
+
+# Specify this if using 
+# any other port than 9618 (the default port in condor)
+#COLLECTOR_PORT=9618
+#COLLECTOR_PORT=49990
+
 
 if [ -z $GLIDEIN_DIR ]; then
     GLIDEIN_DIR=${PWD}
 fi
 if [ -z $SITE ]; then
-    SITE="WIPAC"
+    SITE="Connect_Opportunistic"
 fi
 if [ -z $CLUSTER ]; then
-    CLUSTER="glidein-simprod.icecube.wisc.edu"
+    #CLUSTER="cclweb00.cse.nd.edu"
+    CLUSTER="opteron03.crc.nd.edu"
 fi
 if [ -z $CACHE_DIR ]; then
     CACHE_DIR=$PWD
@@ -58,13 +66,14 @@ export _condor_OASIS_CVMFS_Exists="${CVMFS}"
 export _condor_ICECUBE_CVMFS_Exists="${CVMFS}"
 
 export _condor_CONDOR_HOST="$CLUSTER"
-export _condor_COLLECTOR_HOST="${CLUSTER}:9618?sock=collector"
+export _condor_COLLECTOR_HOST="${CLUSTER}:${COLLECTOR_PORT}?sock=collector"
+#export _condor_COLLECTOR_HOST="${CLUSTER}:9618?sock=collector"
 export _condor_GLIDEIN_Site="\"${SITE}\""
-export _condor_GLIDEIN_HOST="$CLUSTER"
+export _condor_GLIDEIN_HOST="$CLUSTER:${COLLECTOR_PORT}"
 export _condor_GLIDEIN_Max_Walltime=${WALLTIME};
 export _condor_GLIDEIN_Job_Max_Time=${WALLTIME};
 export _condor_CLAIM_WORKLIFE=${WALLTIME};
-export _condor_TimeToLive="${WALLTIME} - MonitorSelfAge";
+export _condor_TIMETOLIVE=${WALLTIME};
 export _condor_STARTD_NOCLAIM_SHUTDOWN="ifThenElse(ifThenElse(isUndefined(NumDynamicSlots),False,NumDynamicSlots > 0), ${WALLTIME} - MonitorSelfAge, ${NOCLAIMTIME})";
 export _condor_MaxJobRetirementTime=${WALLTIME}
 export _condor_SLOT1_RetirementTime="ifThenElse(MonitorSelfAge + ${RETIRETIME} > ${WALLTIME}, ${RETIRETIME}, MonitorSelfAge + ${RETIRETIME} - ${WALLTIME})";
@@ -72,7 +81,7 @@ export _condor_DAEMON_SHUTDOWN="ifThenElse(MonitorSelfAge > ${WALLTIME}, True, F
 export _condor_NOT_RESPONDING_TIMEOUT="${NOCLAIMTIME}*2";
 export _condor_HISTORY="UNDEFINED";
 export _condor_USE_PROCESS_GROUPS="False"
-export _condor_CONDOR_ADMIN="david.schultz@icecube.wisc.edu"
+export _condor_CONDOR_ADMIN="khurtado@nd.edu"
 export _condor_NUM_CPUS=${CPUS};
 export _condor_MEMORY=${MEMORY};
 export _condor_DISK=${DISK};
@@ -84,7 +93,7 @@ export _condor_SLOT_TYPE_1_PARTITIONABLE="True"
 export _condor_SLOT_TYPE_1_CONSUMPTION_POLICY="True"
 export _condor_SLOT_TYPE_1_CONSUMPTION_GPUs="quantize(ifThenElse(target.RequestGpus =!= undefined,target.RequestGpus,0),{0})";
 export _condor_SLOT_WEIGHT="Cpus";
-export _condor_SLOT1_STARTD_ATTRS="OASIS_CVMFS_Exists ICECUBE_CVMFS_Exists GLIDEIN_Site GLIDEIN_Max_Walltime"
+export _condor_SLOT1_STARTD_ATTRS="OASIS_CVMFS_Exists GLIDEIN_Site"
 export _condor_STARTER_JOB_ENVIRONMENT="\"GLIDEIN_Site=${SITE} GLIDEIN_LOCAL_TMP_DIR=${PWD} GOTO_NUM_THREADS=1\"";
 export _condor_START="ifThenElse(ifThenElse(MY.GPUs =!= undefined,MY.GPUs,0) > 0,ifThenElse(TARGET.RequestGPUs =!= undefined,TARGET.RequestGPUs,0) > 0,TRUE)";
 export _condor_UID_DOMAIN=""
@@ -92,11 +101,16 @@ export _condor_UID_DOMAIN=""
 export _condor_MAIL=/bin/mail;
 export _condor_IS_OWNER="False"
 export _campusfactory_wntmp=$PWD
-export _condor_CCB_ADDRESS="${CLUSTER}:9618?sock=collector"
-#export _condor_PRIVATE_NETWORK_NAME=${DOMAIN}
+#export _condor_CCB_ADDRESS="${CLUSTER}:9618?sock=collector"
+export _condor_CCB_ADDRESS="${CLUSTER}:${COLLECTOR_PORT}?sock=collector"
+export _condor_PRIVATE_NETWORK_NAME=${DOMAIN}
 export _condor_UPDATE_COLLECTOR_WITH_TCP="True"
 export _campusfactory_CAMPUSFACTORY_LOCATION=$PWD
 export _condor_USER_JOB_WRAPPER=$PWD/user_job_wrapper.sh
+#export _condor_GSI_DAEMON_NAME="${_condor_GSI_DAEMON_NAME},/DC=org/DC=opensciencegrid/O=Open Science Grid/OU=Services/CN=opteron03.crc.nd.edu"
+if [ "$_condor_GSI_DAEMON_PROXY" = "" ] && [ -a "$X509_USER_PROXY" ]; then
+  export _condor_GSI_DAEMON_PROXY="$X509_USER_PROXY"
+fi
 
 if [ ! -e $GLIDEIN_DIR/glidein.tar.gz ]; then
   wget -nv http://prod-exe.icecube.wisc.edu/glidein.tar.gz
@@ -114,7 +128,7 @@ export _condor_LIB=$PWD/glideinExec/lib
 # make a job wrapper
 cat > $PWD/job_wrapper.sh << "EOF"
 #!/bin/sh
-eval `/cvmfs/icecube.opensciencegrid.org/py2-v1/setup.sh`
+#eval `/cvmfs/icecube.opensciencegrid.org/py2-v1/setup.sh`
 $@
 EOF
 chmod +x $PWD/job_wrapper.sh
@@ -123,7 +137,9 @@ export PATH=$PATH:$_condor_SBIN:$PWD/glideinExec/bin
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$_condor_LIB
 
 # run condor
+echo glideinExec/sbin/condor_master -dyn -f -r 1200
 exec glideinExec/sbin/condor_master -dyn -f -r 1200
+#exec env X509_USER_PROXY=$X509_USER_PROXY glideinExec/sbin/condor_master -dyn -f -r 1200
 
 # clean up after ourselves
 cd ..

@@ -31,7 +31,7 @@ class Submit(object):
     def write_line(self, f, line):
         """
         Wrapper function so we dont have to write \n a million times
-        
+
         Args:
             f: File handle
             line: Line to be written to file
@@ -73,7 +73,7 @@ class Submit(object):
             scale = 1
 
         return scale
-    
+
     def cleanup(self, cmd, direc):
         pass
 
@@ -262,7 +262,7 @@ class SubmitPBS(Submit):
             }
             if "tarball" in self.config["Glidein"]:
                 if "loc" in self.config["Glidein"]:
-                    glidein_tarball = os.path.join(self.config["Glidein"]["loc"], 
+                    glidein_tarball = os.path.join(self.config["Glidein"]["loc"],
                                                    self.config["Glidein"]["tarball"])
                     kwargs['glidein_loc'] = self.config["Glidein"]["loc"]
                 else:
@@ -288,7 +288,7 @@ class SubmitPBS(Submit):
         submit_filename = 'submit.pbs'
         if 'filename' in self.config["SubmitFile"]:
             submit_filename = self.config["SubmitFile"]["filename"]
-        
+
         group_jobs = ("group_jobs" in self.config["Cluster"] and
                       self.config["Cluster"]["group_jobs"] and
                       "count" in state)
@@ -305,7 +305,7 @@ class SubmitPBS(Submit):
 
     def cleanup(self, cmd, direc):
         """
-        Cleans up temporary directories that were created on a network file system that were not 
+        Cleans up temporary directories that were created on a network file system that were not
         deleted by the job itself. Checks whether the job ID used to identify a temporary directory
         is still in the queue. If it is not, the directory gets deleted.
 
@@ -324,11 +324,11 @@ class SubmitPBS(Submit):
 
 class SubmitSLURM(SubmitPBS):
     """SLURM is similar to PBS, but with different headers"""
-    
+
     option_tag = "#SBATCH"
-    
+
     def write_general_header(self, f, mem=3000, walltime_hours=14, disk=1,
-                             num_nodes=1, num_cpus=1, num_gpus=0, 
+                             num_nodes=1, num_cpus=1, num_gpus=0,
                              num_jobs=0):
         """
         Writing the header for a SLURM submission script.
@@ -366,9 +366,9 @@ class SubmitSLURM(SubmitPBS):
 
 class SubmitUGE(SubmitPBS):
     """UGE is similar to PBS, but with different headers"""
-    
+
     option_tag = "#$"
-    
+
     def write_general_header(self, f, mem=3000, walltime_hours=14, disk=1,
                              num_nodes=1, num_cpus=1, num_gpus=0,
                              num_jobs=0):
@@ -502,7 +502,8 @@ class SubmitCondor(Submit):
                 self.write_line(f, 'SITE="%s"' % self.config['Glidein']['site'])
             if 'cluster' in self.config['Glidein']:
                 self.write_line(f, 'CLUSTER="%s"' % self.config['Glidein']['cluster'])
-            f.write('env -i CPUS=$CPUS GPUS=$GPUS MEMORY=$MEMORY DISK=$DISK ')
+            environ_ = '''env $(env | grep -i CONDOR_| awk -F '=' '{print $1}' | xargs -n 1 echo -u | xargs)'''
+            f.write('{0} CPUS=$CPUS GPUS=$GPUS MEMORY=$MEMORY DISK=$DISK '.format(environ_))
             if 'site' in self.config['Glidein']:
                 f.write('SITE=$SITE ')
             if 'cluster' in self.config['Glidein']:
@@ -594,14 +595,14 @@ class SubmitCondor(Submit):
         env_filename = 'env_wrapper.sh'
         if 'env_wrapper_name' in self.config['SubmitFile']:
             env_filename = self.config["SubmitFile"]["env_wrapper_name"]
-        
+
         group_jobs = ("group_jobs" in self.config["Cluster"] and
-                      self.config["Cluster"]["group_jobs"] and 
+                      self.config["Cluster"]["group_jobs"] and
                       "count" in state)
         self.make_env_wrapper(env_filename)
         self.make_submit_file(submit_filename,
                               env_filename,
-                              state, 
+                              state,
                               group_jobs)
         num_submits = 1 if group_jobs else state["count"] if "count" in state else 1
         for i in xrange(num_submits):
